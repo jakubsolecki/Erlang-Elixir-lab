@@ -10,7 +10,8 @@
 -author("Mithrian812").
 
 %% API
--export([createMonitor/0, addStation/3, addValues/5, removeValue/4, getOneValue/4, getStationMean/3, getDailyMean/3]).
+-export([createMonitor/0, addStation/3, addValues/5, removeValue/4, getOneValue/4, getStationMean/3, getDailyMean/3,
+  getHourlyMean/4, getSeasonalMean/5]).
 
 
 %% Create list containing map for storing stations and dictionary for storing reading from those stations
@@ -32,7 +33,10 @@ addStation(Name, {Long, Lat}, [Stations, Readings]) ->
 %% 1) Key exists in dictionary -> there are already some readings -> there's need to check them so we won't have duplicates.
 %%    This case is handled in an assistant function addNewValue/6.
 %% 2) Key does not exist yet in dictionary -> we can proceed and simply add it with value of reading.
-%% Station - name or co-ordinates of the station, tuple with datetime is a standard form returned by calendar:local_time().
+%% Station - name or co-ordinates of the station; tuple with datetime is a standard form returned by calendar:local_time().
+%% !!! IMPORTANT !!!
+%% I decided not to predefine types, that will be stored, in order to maintain flexibility. Should it need to be specified,
+%% You can use addValues/5 for pattern matching and change current function to "private" (don't export it).
 addValues(Station, {{Year, Month, Day}, {Hour, _, _}}, Type, Value, [Stations, Readings]) ->
   case maps:find(Station, Stations) of
     error -> io:format("This station is not registered yet!~n"), error;
@@ -51,8 +55,8 @@ addValues(Station, {{Year, Month, Day}, {Hour, _, _}}, Type, Value, [Stations, R
 %% that and end with an error; if it does not, we add it to dictionary.
 %% StationKey is a tuple from map of stations.
 addNewValue(StationKey, {{Year, Month, Day}, Hour}, Type, Value, List, [Stations, Readings]) ->
-  case [{Y, Mon, D, H, T, V} || {{{Y, Mon, D}, H}, T, V} <- List,
-    {Y, Mon, D, H, T} == {Year, Month, Day, Hour, Type}] of
+  case [{Y, M, D, H, T, V} || {{{Y, M, D}, H}, T, V} <- List,
+    {Y, M, D, H, T} == {Year, Month, Day, Hour, Type}] of
     [] -> [Stations, dict:append(StationKey, {{{Year, Month, Day}, Hour}, Type, Value}, Readings)];
     _ -> io:format("This reading is already registered!~n"), error
   end.
@@ -62,8 +66,8 @@ addNewValue(StationKey, {{Year, Month, Day}, Hour}, Type, Value, List, [Stations
 %% given value.
 removeValue(Station, {{Year, Month, Day}, Hour}, Type, [Stations, Readings]) ->
   Fun = fun(Val) ->
-    [{{{Y, Mon, D}, H}, T, V} || {{{Y, Mon, D}, H}, T, V} <- Val,
-      {Y, Mon, D, H, T} /= {Year, Month, Day, Hour, Type}]
+    [{{{Y, M, D}, H}, T, V} || {{{Y, M, D}, H}, T, V} <- Val,
+      {Y, M, D, H, T} /= {Year, Month, Day, Hour, Type}]
         end,
   case maps:find(Station, Stations) of
     error -> io:format("This station is not registered yet!~n"), error;
@@ -77,8 +81,8 @@ removeValue(Station, {{Year, Month, Day}, Hour}, Type, [Stations, Readings]) ->
 
 
 %% Function returns value of specified type from specified station and date. It is done using simple list comprehensions
-%% on list of the values under key (station). Unlike the previous functions, it returns found value, not updated list with
-%% map and dictionary.
+%% on list of the values under key (station). Unlike the previous functions, it returns found value, not updated list
+%% with map and dictionary.
 getOneValue(Station, {{Year, Month, Day}, Hour}, Type, [Stations, Readings]) ->
   case maps:find(Station, Stations) of
     error -> io:format("This station is not registered yet!~n"), error;
@@ -101,7 +105,7 @@ getStationMean(Station, Type, [Stations, Readings]) ->
   case maps:find(Station, Stations) of
     error -> io:format("This station is not registered yet!~n"), error;
     {ok, StationKey} ->
-      case [V || {{{_, _, _}, _}, T, V} <- dict:fetch(StationKey, Readings), T == Type] of
+      case [V || {_, T, V} <- dict:fetch(StationKey, Readings), T == Type] of
         [] -> 0;
         List ->
           {Sum, Count} = count(List),
@@ -130,3 +134,33 @@ getDailyMean({Year, Month, Day}, Type, [Stations, Readings]) ->
     false -> Sres/Cres
   end.
 
+
+%% Returns mean of all values of specified types on given station. Considered values come from readings done
+%% on specific hour (eg. Mean of PM2.5 values, every day at 14, on Station A).
+getHourlyMean(Station, Hour, Type, [Stations, Readings]) ->
+  case maps:find(Station, Stations) of
+    error -> io:format("This satation is not registered yet!~n"), error;
+    {ok, StationKey} ->
+      case [V || {{_, H}, T, V} <- dict:fetch(StationKey, Readings), {T, H} == {Type, Hour}] of
+        [] -> 0;
+        List ->
+          {Sum, Count} = count(List),
+          Sum/Count
+      end
+  end.
+
+
+%% Returns mean of values of specified type from given time interval, eg. Station A, {2019, 9}, {2020, 3}, "temp" will
+%% include all readings of temperature from 01.09.2019 to 31.03.2020 from station A.
+getSeasonalMean(Station, {StartYear, StartMonth}, {EndYear, EndMoth}, Type, [Stations, Readings]) ->
+  case maps:find(Station, Stations) of
+    error -> io:format("This satation is not registered yet!~n"), error;
+    {ok, StationKey} ->
+      case [V || {{{Y, M, _}, H}, T, V} <- dict:fetch(StationKey, Readings),
+        Y >= StartYear, M >= StartMonth, Y =< EndYear, M =<  EndMoth, T == Type] of
+        [] -> 0;
+        List ->
+          {Sum, Count} = count(List),
+          Sum/Count
+      end
+  end.
