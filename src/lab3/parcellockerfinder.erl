@@ -10,7 +10,12 @@
 -author("Jakub Solecki").
 
 %% API
--export([findMyParcelLocker/2, findMyParcelLocker/3, randomElems/3, start/3, loop/3, server/3, len/1]).
+-export([findMyParcelLocker/2, findMyParcelLocker/3, randomElems/3, start/3, server/3, timeMeasure/0,  len/1]).
+
+
+randomElems(N, Min, Max) -> [{rand:uniform(Max - Min + 1) + Min - 1, rand:uniform(Max - Min + 1) + Min - 1}  ||
+  _ <- lists:seq(1,  N)].
+
 
 %% Standard approach
 
@@ -28,9 +33,6 @@ findMyParcelLocker(PersonLocation, LockerLocations) ->
       element(2, A) =< element(2, B)
     end,
   {PersonLocation, element(1, lists:nth(1, lists:sort(Fun, Distances)))}.
-
-randomElems(N, Min, Max) -> [{rand:uniform(Max - Min + 1) + Min - 1, rand:uniform(Max - Min + 1) + Min - 1}  ||
-  _ <- lists:seq(1,  N)].
 
 
 
@@ -51,6 +53,9 @@ findMyParcelLocker(PPID, PersonLocation, LockerLocations) ->
   PPID ! {PersonLocation, element(1, lists:nth(1, lists:sort(Fun, Distances)))}.
 
 start(PeopleLocations, LockerLocations, End) ->
+  MPID = spawn(parcellockerfinder, timeMeasure, []),
+  register(myTimer, MPID),
+  myTimer ! {t1, erlang:timestamp()},
   PPID = spawn(parcellockerfinder, server, [1, End, []]),
   spawn(fun() -> loop(PPID, PeopleLocations, LockerLocations) end).
 
@@ -60,11 +65,13 @@ server(Count, End, List) ->
     Res ->
       case Count == End of
         false -> server(Count+1, End, [Res | List]);
-        true -> io:format("~w ~w~n", [Count, List])
+        true ->
+          io:format("~w ~w~n", [Count, List]),
+          myTimer ! {t2, erlang:timestamp()}
       end
   end.
 
-loop(PPID, [], _) -> ok;
+loop(_, [], _) -> ok;
 loop(PPID, [H | PeopleLocations], LockerLocations) ->
   spawn(fun() -> findMyParcelLocker(PPID, H, LockerLocations) end),
   loop(PPID, PeopleLocations, LockerLocations).
@@ -72,3 +79,12 @@ loop(PPID, [H | PeopleLocations], LockerLocations) ->
 len(List) -> len(List, 0).
 len([], N) -> N;
 len([_ | Rest], N) -> len(Rest, N+1).
+
+timeMeasure() ->
+  receive
+    {t1, T} -> Time1 = T, timeMeasure(Time1)
+  end.
+timeMeasure(Time1) ->
+  receive
+    {t2, T} -> io:format("~w~n", [timer:now_diff(T, Time1)])
+  end.
