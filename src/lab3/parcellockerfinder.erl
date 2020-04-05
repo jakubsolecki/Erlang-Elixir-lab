@@ -24,7 +24,7 @@ randomElems(N, Min, Max) -> [{rand:uniform(Max - Min + 1) + Min - 1, rand:unifor
 %% Lockers = parcellockerfinder:randomElems(1000, 0, 10000).
 %% Customers = parcellockerfinder:randomElems(10000, 0, 10000).
 %% Fun = fun(P) -> parcellockerfinder:findMyParcelLocker(P, Lockers) end.
-%% Result = lists:map(Fun, Customers).
+%% timer:tc(lists, map, [Fun, Customers]).
 
 findMyParcelLocker(PersonLocation, LockerLocations) ->
   Distances = [{{X, Y}, math:sqrt(math:pow(element(1, PersonLocation) - X, 2) +
@@ -57,7 +57,7 @@ start(PeopleLocations, LockerLocations, End) ->
   MPID = spawn(parcellockerfinder, timeMeasure, []),
   register(myTimer, MPID),
   myTimer ! {t1, erlang:timestamp()},
-  PPID = spawn(parcellockerfinder, server, [1, End, []]),
+  PPID = spawn(parcellockerfinder, server, [0, End, []]),
 %%  register(server, PPID),
   spawn(fun() -> loop(PPID, PeopleLocations, LockerLocations) end).
 
@@ -65,10 +65,10 @@ server(Count, End, List) ->
   receive
     stop -> io:format("~w ~w~n", [len(List), List]);
     Res ->
-      case Count == End of
+      case Count+1 == End of
         false -> server(Count+1, End, [Res | List]);
         true ->
-          io:format("~w ~w~n", [Count, List]),
+          io:format("~w ~w~n", [len([Res | List]), [Res | List]]),
           myTimer ! {t2, erlang:timestamp()}
       end
   end.
@@ -109,22 +109,12 @@ start4cores(PeopleLocations, LockerLocations, End, Mod) ->
   MPID = spawn(parcellockerfinder, timeMeasure, []),
   register(myTimer, MPID),
   myTimer ! {t1, erlang:timestamp()},
-  PPID = spawn(parcellockerfinder, server, [1, End, []]),
+  PPID = spawn(parcellockerfinder, server, [0, End, []]),
   Fun = fun(X) -> parcellockerfinder:findMyParcelLockerSerial(PPID, X, LockerLocations) end,
   splitList(PeopleLocations, Mod, Fun).
 
-%%  L1 = lists:nthtail(7499, LockerLocations),
-%%  _ = spawn(parcellockerfinder, loop, [PPID, PeopleLocations, lists:nthtail(7499, LockerLocations)]),
-%%  _ = spawn(parcellockerfinder, loop, [PPID, PeopleLocations, lists:nthtail(4999, lists:nthtail(7499, LockerLocations))]),
-%%  _ = spawn(parcellockerfinder, loop,
-%%    [PPID, PeopleLocations, lists:nthtail(2499, lists:nthtail(4999, lists:nthtail(7499, LockerLocations)))]),
-%%  _ = spawn(parcellockerfinder, loop,
-%%    [PPID, PeopleLocations, list:nthtail(0, lists:nthtail(2499, lists:nthtail(4999, lists:nthtail(7499, LockerLocations))))]).
-
-
 splitList(List, Mod, Fun) ->
   splitList(List, Mod, [], 0, Fun).
-
 splitList([], _, Acc, _, Fun) ->
   spawn(fun() -> Fun(Acc) end);
 splitList([H | Tail], Mod, Acc, Count, Fun) ->

@@ -1,0 +1,7 @@
+Poniżej preznetuję czasy obliczenia położenia najbliższego paczkomatu dla każdej osoby.
+Dane: 1k par współrzędnych paczkomatów oraz 10k współrzędnych osób.
+
+Wyniki:
+Uruchomienie osobnej funkcji dla każdej osoby: 5516000 mikrosekund.
+Uruchomienie osobnego procesu dla każdej osoby: 2250000 mikrosekund.
+4 rdzenie => 4 procesy, każdy otrzymał 2.5k z 10k osób: 1484000 mikrosekund.
