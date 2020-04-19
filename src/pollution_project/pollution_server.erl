@@ -56,24 +56,19 @@ loop(Storage) ->
           loop(Storage)
       end;
     {PID, {get_one_value, Station ,Date, Type}} ->
-      Val = pollution:getOneValue(Station, Date, Type, Storage),
-      PID ! {reply, Val},
+      PID ! {reply, pollution:getOneValue(Station, Date, Type, Storage)},
       loop(Storage);
     {PID, {get_station_mean, Station, Type}} ->
-      Mean = pollution:getStationMean(Station, Type, Storage),
-      PID ! {reply, Mean},
+      PID ! {reply, pollution:getStationMean(Station, Type, Storage)},
       loop(Storage);
     {PID, {get_daily_mean, Date, Type}} ->
-      Mean = pollution:getDailyMean(Date, Type, Storage),
-      PID ! {reply, Mean},
+      PID ! {reply, pollution:getDailyMean(Date, Type, Storage)},
       loop(Storage);
     {PID, {get_hourly_mean, Station, Hour, Type}} ->
-      Mean = pollution:getHourlyMean(Station, Hour, Type, Storage),
-      PID ! {reply, Mean},
+      PID ! {reply, pollution:getHourlyMean(Station, Hour, Type, Storage)},
       loop(Storage);
     {PID, {get_seasonal_mean, Station, Start, End, Type}} ->
-      Mean = pollution:getSeasonalMean(Station, Start, End, Type, Storage),
-      PID ! {reply, Mean},
+      PID ! {reply, pollution:getSeasonalMean(Station, Start, End, Type, Storage)},
       loop(Storage);
     stop -> ok
   end.

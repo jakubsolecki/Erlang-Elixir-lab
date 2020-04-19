@@ -72,4 +72,6 @@ removeValue_test() ->
   ?assertMatch({error, _}, pollution_server:removeValue("Platform 9 i 3/4", {{Y, M, D}, H}, "PM 2.5")).
 
 stop_test() ->
-  ?assertEqual(stop, pollution_server:stop()).
+  ?assertEqual(stop, pollution_server:stop()),
+  timer:sleep(50),
+  ?assert(not lists:member(pollServ, registered())).
