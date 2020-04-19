@@ -68,11 +68,8 @@ getSeasonalMean_test() ->
 removeValue_test() ->
   {{Y, M, D}, {H, _, _}} = calendar:local_time(),
   ?assertEqual(ok, pollution_server:removeValue("Station 1", {{Y, M, D}, H}, "temp")),
-
-  %% TODO: consider removing this clause
-  %% "Silent removal" - pollution:removeValue/4 does not signalize error if there's no such a reading
-  %% It's not a bug, it's a feature. (But really, it would just double necessary operations)
-  ?assertMatch(ok, pollution_server:removeValue("Station 1", {{Y, M, D}, H}, "temp")),
-
+  ?assertMatch({error, _}, pollution_server:removeValue("Station 1", {{Y, M, D}, H}, "temp")),
   ?assertMatch({error, _}, pollution_server:removeValue("Platform 9 i 3/4", {{Y, M, D}, H}, "PM 2.5")).
 
+stop_test() ->
+  ?assertEqual(stop, pollution_server:stop()).

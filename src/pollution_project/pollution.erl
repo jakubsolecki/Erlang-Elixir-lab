@@ -51,8 +51,6 @@ addNewValue(StationKey, {{Year, Month, Day}, Hour}, Type, Value, List, [Stations
 
 
 %% Remove reading (from one of the registered stations)
-%% "Silent removal" - does not signalize error if there's no such a reading
-%% TODO: signalize {error, reading_not_found}
 removeValue(Station, {{Year, Month, Day}, Hour}, Type, [Stations, Readings]) ->
   Fun = fun(Val) ->
     [{{{Y, M, D}, H}, T, V} || {{{Y, M, D}, H}, T, V} <- Val,
@@ -63,7 +61,15 @@ removeValue(Station, {{Year, Month, Day}, Hour}, Type, [Stations, Readings]) ->
     {ok, StationKey} ->
       case dict:is_key(StationKey, Readings) of
         true ->
-          [Stations, dict:update(StationKey, Fun, Readings)];
+          %% Could have been done without returning an error, but I like to know what's going on
+          Len = fun(X) -> lists:foldl(fun(_, Acc) -> Acc + 1 end, 0, X) end,
+          NewReadings = dict:update(StationKey, Fun, Readings),
+          {_, R1} = dict:find(StationKey, Readings),
+          {_, R2} = dict:find(StationKey, NewReadings),
+          case Len(R1) == Len(R2) of
+            false -> [Stations, NewReadings];
+            true -> {error, reading_not_found}
+          end;
         false -> {error, station_is_empty}
       end
   end.
@@ -112,7 +118,7 @@ count(List) ->
 
 %% Calculate daily mean of specified type value for all stations.
 getDailyMean({Year, Month, Day}, Type, [_, Readings]) ->
-  Fun = fun(Key, ListOfVals, {Sum, Count}) ->
+  Fun = fun(_, ListOfVals, {Sum, Count}) ->
     {S, C} = count([V || {{{Y, M, D}, _}, T, V} <- ListOfVals, {Y, M, D, T} == {Year, Month, Day, Type}]),
     {Sum + S, Count + C}
         end,
