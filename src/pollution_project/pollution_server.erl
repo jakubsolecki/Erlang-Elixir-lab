@@ -15,7 +15,7 @@
 -export([addStation/2, addValues/4, removeValue/3, getOneValue/3, getStationMean/2, getDailyMean/2, getHourlyMean/3,
   getSeasonalMean/4]).
 
-
+%% Managing the server
 start() -> register(pollServ, spawn(pollution_server, init, [])).
 
 init() -> loop(pollution:createMonitor()).
@@ -85,7 +85,7 @@ call(Msg) ->
     {reply, Reply} -> Reply
   end.
 
-%% Requesting operations on server via client (call)
+%% Requesting operations on server via client
 addStation(Name, {Long, Lat}) ->
   call({add_station, Name, {Long, Lat}}).
 
@@ -107,5 +107,5 @@ getDailyMean({Year, Month, Day}, Type) ->
 getHourlyMean(Station, Hour, Type) ->
   call({get_hourly_mean, Station, Hour, Type}).
 
-getSeasonalMean(Station, {StartYear, StartMonth}, {EndYear, EndMoth}, Type) ->
-  call({get_seasonal_mean, Station, {StartYear, StartMonth}, {EndYear, EndMoth}, Type}).
+getSeasonalMean(Station, {StartYear, StartMonth}, {EndYear, EndMonth}, Type) ->
+  call({get_seasonal_mean, Station, {StartYear, StartMonth}, {EndYear, EndMonth}, Type}).

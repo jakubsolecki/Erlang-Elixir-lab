@@ -19,7 +19,7 @@
 createMonitor() -> [maps:new(), dict:new()].
 
 
-%% Register station (doubled, in order to simplify searching)
+%% Register station (doubled, in order to simplify search operations. At least for me to code them)
 addStation(Name, {Long, Lat}, [Stations, Readings]) ->
   case {maps:find(Name, Stations), maps:find({Long, Lat}, Stations)} of
     {error, error} ->
@@ -51,6 +51,8 @@ addNewValue(StationKey, {{Year, Month, Day}, Hour}, Type, Value, List, [Stations
 
 
 %% Remove reading (from one of the registered stations)
+%% "Silent removal" - does not signalize error if there's no such a reading
+%% TODO: signalize {error, reading_not_found}
 removeValue(Station, {{Year, Month, Day}, Hour}, Type, [Stations, Readings]) ->
   Fun = fun(Val) ->
     [{{{Y, M, D}, H}, T, V} || {{{Y, M, D}, H}, T, V} <- Val,
@@ -93,7 +95,7 @@ getStationMean(Station, Type, [Stations, Readings]) ->
         false -> {error, station_is_empty};
         true ->
           case [V || {_, T, V} <- dict:fetch(StationKey, Readings), T == Type] of
-            [] -> 0;
+            [] -> {error, no_readings};
             List ->
               {Sum, Count} = count(List),
               Sum/Count
@@ -109,14 +111,14 @@ count(List) ->
 
 
 %% Calculate daily mean of specified type value for all stations.
-getDailyMean({Year, Month, Day}, Type, [Stations, Readings]) ->
+getDailyMean({Year, Month, Day}, Type, [_, Readings]) ->
   Fun = fun(Key, ListOfVals, {Sum, Count}) ->
     {S, C} = count([V || {{{Y, M, D}, _}, T, V} <- ListOfVals, {Y, M, D, T} == {Year, Month, Day, Type}]),
     {Sum + S, Count + C}
         end,
   {Sres, Cres} = dict:fold(Fun, {0, 0}, Readings),
   case {Sres, Cres} == {0, 0} of
-    true -> 0;
+    true -> {error, no_readings};
     false -> Sres/Cres
   end.
 
@@ -130,7 +132,7 @@ getHourlyMean(Station, Hour, Type, [Stations, Readings]) ->
         false -> {error, station_is_empty};
         true ->
           case [V || {{_, H}, T, V} <- dict:fetch(StationKey, Readings), {T, H} == {Type, Hour}] of
-            [] -> 0; %% TODO: change to error
+            [] -> {error, no_readings};
             List ->
               {Sum, Count} = count(List),
               Sum/Count
@@ -140,16 +142,16 @@ getHourlyMean(Station, Hour, Type, [Stations, Readings]) ->
 
 
 %% Returns mean of values of specified type from given time interval.
-getSeasonalMean(Station, {StartYear, StartMonth}, {EndYear, EndMoth}, Type, [Stations, Readings]) ->
+getSeasonalMean(Station, {StartYear, StartMonth}, {EndYear, EndMonth}, Type, [Stations, Readings]) ->
   case maps:find(Station, Stations) of
     error -> {error, station_does_not_exist};
     {ok, StationKey} ->
       case dict:is_key(StationKey, Readings) of
         false -> {error, station_is_empty};
         true ->
-          case [V || {{{Y, M, _}, H}, T, V} <- dict:fetch(StationKey, Readings),
-            Y >= StartYear, M >= StartMonth, Y =< EndYear, M =<  EndMoth, T == Type] of
-            [] -> 0; %% TODO: change to error
+          case [V || {{{Y, M, _}, _}, T, V} <- dict:fetch(StationKey, Readings),
+            Y >= StartYear, M >= StartMonth, {Y ,M} =< {EndYear, EndMonth}, T == Type] of
+            [] -> {error, no_readings};
             List ->
               {Sum, Count} = count(List),
               Sum/Count
