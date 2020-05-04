@@ -66,11 +66,6 @@ removeValue_test() ->
   ?assertEqual(ok, pollution_gen_server:removeValue("Station 1", {{Y, M, D}, H}, "temp")),
   ?assertEqual(ok, pollution_gen_server:removeValue("Platform 9 i 3/4", {{Y, M, D}, H}, "PM 2.5")).
 
-crash_test() ->
-  pollution_gen_server:crash(),
-  timer:sleep(50),
-  ?assert(lists:member(pollution_gen_server, registered())).
-
 stop_test() ->
   ?assertEqual(ok, pollution_gen_server:stop()),
   timer:sleep(50),

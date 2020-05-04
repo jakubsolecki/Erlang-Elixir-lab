@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, addStation/2, addValues/4, removeValue/3, getOneValue/3, getStationMean/2, getDailyMean/2,
+-export([start_link/0, start/0, addStation/2, addValues/4, removeValue/3, getOneValue/3, getStationMean/2, getDailyMean/2,
   getHourlyMean/3, getSeasonalMean/4, stop/0, crash/0]).
 
 %% gen_server callbacks
@@ -29,12 +29,15 @@
 -type coords() :: {Lon :: float(), Lat :: float()}.  % {Longitude, Latitude}
 
 %%%===================================================================
-%%% API
+%%% User interface
 %%%===================================================================
 
 %% @doc Spawns the server and registers the local name (unique)
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, pollution:createMonitor(), []).
+
+%% @doc Alias for start_link/0
+start() -> start_link().
 
 %% ASYNCHRONOUS REQUESTS
 -spec(addStation(Name :: string(), Coords :: coords()) -> term()).
@@ -47,6 +50,7 @@ addValues(Station, Date, Type, Value) -> gen_server:cast(?MODULE, {addValues, [S
 removeValue(Station, Date, Type) -> gen_server:cast(?MODULE, {removeValue, [Station, Date, Type]}).
 
 crash() -> gen_server:cast(?MODULE, crash).
+stop() -> gen_server:cast(?MODULE, stop).
 
 
 %% SYNCHRONOUS REQUESTS
@@ -67,16 +71,12 @@ getHourlyMean(Station, Hour, Type) -> gen_server:call(?MODULE, {getHourlyMean, [
 getSeasonalMean(Station, StartDate, EndDate, Type) ->
   gen_server:call(?MODULE, {getSeasonalMean, [Station, StartDate, EndDate, Type]}).
 
-stop() -> gen_server:call(?MODULE, terminate).
-
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
 %% @private
 %% @doc Initializes the server
--spec(init(Args :: list()) ->
-  {ok, Monitor :: list()} | {stop, Reason :: term()} | ignore).
 init(Monitor) ->
   {ok, Monitor}.
 
@@ -91,9 +91,7 @@ handle_call({getDailyMean, {getDailyMean, [Date, Type]}}, _From, Monitor) ->
 handle_call({getHourlyMean, [Station, Hour, Type]}, _From, Monitor) ->
   {reply, pollution:getHourlyMean(Station, Hour, Type, Monitor), Monitor};
 handle_call({getSeasonalMean, [Station, {StartYear, StartMonth}, {EndYear, EndMonth}, Type]}, _From, Monitor) ->
-  {reply, pollution:getSeasonalMean(Station, {StartYear, StartMonth}, {EndYear, EndMonth}, Type, Monitor), Monitor};
-handle_call(terminate, _From, Monitor) ->
-  {stop, normal, ok, Monitor}.
+  {reply, pollution:getSeasonalMean(Station, {StartYear, StartMonth}, {EndYear, EndMonth}, Type, Monitor), Monitor}.
 
 %% @private
 %% @doc Handling cast messages
@@ -103,7 +101,8 @@ handle_cast({addValues, [Station, Date, Type, Value]}, Monitor) ->
   handle_cast_result(pollution:addValues(Station, Date, Type, Value, Monitor), Monitor);
 handle_cast({removeValue, [Station, Date, Type]}, Monitor) ->
   handle_cast_result(pollution:removeValue(Station, Date, Type, Monitor), Monitor);
-handle_cast(crash, _) -> 1 / 0.
+handle_cast(crash, _) -> 1 / 0;
+handle_cast(stop, Monitor) -> {stop, normal, Monitor}.
 
 %% @private
 %% @doc Handling results from cast messages. Due to the asynchronous
@@ -119,9 +118,9 @@ handle_info(_Info, Monitor) ->
 
 %% @private
 %% @doc This function is called by a gen_server when it is about to
-%% terminate. It is the opposite of Module:init/1 and does any
-%% necessary cleaning up. When it returns, the gen_server terminates
+%% terminate. When it returns, the gen_server terminates
 %% with Reason. The return value is ignored.
 terminate(_Reason, Monitor) ->
+  erlang:display(_Reason),
   erlang:display(Monitor),
   ok.
