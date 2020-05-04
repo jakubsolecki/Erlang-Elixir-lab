@@ -22,33 +22,21 @@
 
 %% Custom types to simplify functions' signatures
 -type full_date() :: {{Year :: integer(), Month :: integer(), Day :: integer()}, {Hour :: integer(),
-  Minute :: integer(), Second :: integer()}}.
--type coords() :: {Lon :: float(), Lat :: float()}.
--type hour_date() :: {{Year :: integer(), Month :: integer(), Day :: integer()}, Hour :: integer()}.
+  Minute :: integer(), Second :: integer()}}.  % {{Y, Mo, D}, {H, Mi ,S}}
+-type day_date() :: {Year :: integer(), Month :: integer(), Day :: integer()}.  % {Y, M, D}
+-type hour_date() :: {{Year :: integer(), Month :: integer(), Day :: integer()}, Hour :: integer()}.  % {{Y, M, D}, H}
+-type month_date() :: {Year :: integer(), Month :: integer()}.  % {Y, M}
+-type coords() :: {Lon :: float(), Lat :: float()}.  % {Longitude, Latitude}
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 %% @doc Spawns the server and registers the local name (unique)
-%%-spec(start_link() ->
-%%  {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, pollution:createMonitor(), []).
 
-%%%===================================================================
-%%% gen_server callbacks
-%%%===================================================================
-
-%% @private
-%% @doc Initializes the server
-%%-spec(init(Args :: term()) ->
-%%  {ok, State :: #pollution_gen_server_state{}} | {ok, State :: #pollution_gen_server_state{}, timeout() | hibernate} |
-%%  {stop, Reason :: term()} | ignore).
-init(Monitor) ->
-  {ok, Monitor}.
-
-%% SYNCHRONOUS REQUESTS
+%% ASYNCHRONOUS REQUESTS
 -spec(addStation(Name :: string(), Coords :: coords()) -> term()).
 addStation(Name, Coords) -> gen_server:cast(?MODULE, {addStation, [Name, Coords]}).
 
@@ -60,30 +48,40 @@ removeValue(Station, Date, Type) -> gen_server:cast(?MODULE, {removeValue, [Stat
 
 crash() -> gen_server:cast(?MODULE, crash).
 
-%% ASYNCHRONOUS REQUESTS
--spec(getOneValue(Station :: coords() | string(), Date :: hour_date(), Type :: string()) -> term()).
+
+%% SYNCHRONOUS REQUESTS
+-spec(getOneValue(Station :: coords() | string(), Date :: hour_date(), Type :: string()) -> number()).
 getOneValue(Station, Date, Type) -> gen_server:call(?MODULE, {getOneValue, [Station, Date, Type]}).
+
+-spec(getStationMean(Station :: string() | coords(), Type :: string()) -> number()).
 getStationMean(Station, Type) -> gen_server:call(?MODULE, {getStationMean, [Station, Type]}).
+
+-spec(getDailyMean(Date :: day_date(), Type :: string()) -> number()).
 getDailyMean(Date, Type) -> gen_server:call(?MODULE, {getDailyMean, {getDailyMean, [Date, Type]}}).
+
+-spec(getHourlyMean(Station :: string() | coords(), Hour :: integer(), Type :: string()) -> number()).
 getHourlyMean(Station, Hour, Type) -> gen_server:call(?MODULE, {getHourlyMean, [Station, Hour, Type]}).
-getSeasonalMean(Station, {StartYear, StartMonth}, {EndYear, EndMonth}, Type) ->
-  gen_server:call(?MODULE, {getSeasonalMean, [Station, {StartYear, StartMonth}, {EndYear, EndMonth}, Type]}).
+
+-spec(getSeasonalMean(Station :: string() | coords(), StartDate :: month_date(), EndDate :: month_date(),
+    Type :: string()) -> number()).
+getSeasonalMean(Station, StartDate, EndDate, Type) ->
+  gen_server:call(?MODULE, {getSeasonalMean, [Station, StartDate, EndDate, Type]}).
+
 stop() -> gen_server:call(?MODULE, terminate).
 
+%%%===================================================================
+%%% gen_server callbacks
+%%%===================================================================
+
+%% @private
+%% @doc Initializes the server
+-spec(init(Args :: list()) ->
+  {ok, Monitor :: list()} | {stop, Reason :: term()} | ignore).
+init(Monitor) ->
+  {ok, Monitor}.
 
 %% @private
 %% @doc Handling call messages
-%%-spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
-%%    State :: #pollution_gen_server_state{}) ->
-%%  {reply, Reply :: term(), NewState :: #pollution_gen_server_state{}} |
-%%  {reply, Reply :: term(), NewState :: #pollution_gen_server_state{}, timeout() | hibernate} |
-%%  {noreply, NewState :: #pollution_gen_server_state{}} |
-%%  {noreply, NewState :: #pollution_gen_server_state{}, timeout() | hibernate} |
-%%  {stop, Reason :: term(), Reply :: term(), NewState :: #pollution_gen_server_state{}} |
-%%  {stop, Reason :: term(), NewState :: #pollution_gen_server_state{}}).
-%%handle_call(_Request, _From, State = #pollution_gen_server_state{}) ->
-%%  {reply, ok, State}.
-
 handle_call({getOneValue, [Station, Date, Type]}, _From, Monitor) ->
   {reply, pollution:getOneValue(Station, Date, Type, Monitor), Monitor};
 handle_call({getStationMean, [Station, Type]}, _From, Monitor) ->
@@ -97,26 +95,21 @@ handle_call({getSeasonalMean, [Station, {StartYear, StartMonth}, {EndYear, EndMo
 handle_call(terminate, _From, Monitor) ->
   {stop, normal, ok, Monitor}.
 
-
 %% @private
 %% @doc Handling cast messages
-%%-spec(handle_cast(Request :: term(), State :: #pollution_gen_server_state{}) ->
-%%  {noreply, NewState :: #pollution_gen_server_state{}} |
-%%  {noreply, NewState :: #pollution_gen_server_state{}, timeout() | hibernate} |
-%%  {stop, Reason :: term(), NewState :: #pollution_gen_server_state{}}).
-%%handle_cast(_Request, State = #pollution_gen_server_state{}) ->
-%%  {noreply, State}.
 handle_cast({addStation, [Name, Coords]}, Monitor) ->
   handle_cast_result(pollution:addStation(Name, Coords, Monitor), Monitor);
 handle_cast({addValues, [Station, Date, Type, Value]}, Monitor) ->
   handle_cast_result(pollution:addValues(Station, Date, Type, Value, Monitor), Monitor);
 handle_cast({removeValue, [Station, Date, Type]}, Monitor) ->
   handle_cast_result(pollution:removeValue(Station, Date, Type, Monitor), Monitor);
-handle_cast(crash, Monitor) -> 1 / 0, {noreply, Monitor}.
+handle_cast(crash, _) -> 1 / 0.
 
 %% @private
-%% @doc Handling result from functions
-handle_cast_result({error, Msg}, OldMonitor) -> {noreply, Msg, OldMonitor};
+%% @doc Handling results from cast messages. Due to the asynchronous
+%% nature of cast messages potential errors can only be written to
+%% the stdout.
+handle_cast_result({error, Msg}, OldMonitor) -> erlang:display({error, Msg}), {noreply, OldMonitor};
 handle_cast_result(UpdatedMonitor, _OldMonitor) -> {noreply, UpdatedMonitor}.
 
 %% @private
@@ -125,15 +118,10 @@ handle_info(_Info, Monitor) ->
   {noreply, Monitor}.
 
 %% @private
-%%%% @doc This function is called by a gen_server when it is about to
-%%%% terminate. It should be the opposite of Module:init/1 and do any
-%%%% necessary cleaning up. When it returns, the gen_server terminates
-%%%% with Reason. The return value is ignored.
+%% @doc This function is called by a gen_server when it is about to
+%% terminate. It is the opposite of Module:init/1 and does any
+%% necessary cleaning up. When it returns, the gen_server terminates
+%% with Reason. The return value is ignored.
 terminate(_Reason, Monitor) ->
   erlang:display(Monitor),
   ok.
-
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
