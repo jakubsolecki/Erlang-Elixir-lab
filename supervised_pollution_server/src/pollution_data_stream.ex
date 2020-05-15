@@ -1,19 +1,21 @@
-defmodule PollutionData do
+defmodule PollutionDataStream do
   @moduledoc false
 
   def importLinesFromCSV() do
-    File.read!("pollution.csv") |> String.split("\n") |> Enum.map(&parseLine(&1))
+    File.stream!("pollution.csv") |> Stream.map(&parseLine(&1)) |> Enum.to_list
   end
 
   def parseLine(line) do
     [date, time, lon, lat, value] = String.split(line, ",")
-    date = String.split(date, "-") |> Enum.reverse |> Enum.map(&(Integer.parse(&1) |> elem(0))) |> :erlang.list_to_tuple()
-    time = String.split(time, ":") |> Enum.map(&(Integer.parse(&1) |> elem(0))) |> :erlang.list_to_tuple() |> Tuple.append(0)
+    date = String.split(date, "-") |> Enum.reverse |> Stream.map(&(Integer.parse(&1) |> elem(0))) |>
+      Enum.reduce({}, fn(element, tuple) -> Tuple.append(tuple, element) end)
+    time = String.split(time, ":") |> Stream.map(&(Integer.parse(&1) |> elem(0))) |>
+      Enum.reduce({}, fn(element, tuple) -> Tuple.append(tuple, element) end) |> Tuple.append(0)
     lon = Float.parse(lon) |> elem(0)
     lat = Float.parse(lat) |> elem(0)
     value = Integer.parse(value) |> elem(0)
 
-    %{:datetime => {date, time}, :location => {lon, lat}, :value => value}
+    %{:datetime => {date, time}, :location => {lon, lat}, :pollutionLevel => value}
   end
 
   def identifyStations(list), do:
@@ -28,7 +30,7 @@ defmodule PollutionData do
 
   def addValues([]), do: :ok
   def addValues([reading | tail]) do
-    :pollution_gen_server.addValues(reading.location, reading.datetime, 'PM10', reading.value)
+    :pollution_gen_server.addValues(reading.location, reading.datetime, 'PM10', reading.pollutionLevel)
     addValues(tail)
   end
 
@@ -46,5 +48,4 @@ defmodule PollutionData do
     IO.puts("#{ stationMean |> :timer.tc([]) |> elem(0)}")
     IO.puts("#{ dailyMean |> :timer.tc([]) |> elem(0)}")
   end
-
 end
