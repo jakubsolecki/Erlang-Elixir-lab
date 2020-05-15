@@ -1,0 +1,4 @@
+[{<<"rebar_elixir_plugin">>,
+  {git,"git://github.com/yrashk/rebar_elixir_plugin",
+       {ref,"7058379b7c7e017555647f6b9cecfd87cd50f884"}},
+  0}].

@@ -108,6 +108,7 @@ handle_cast(stop, Monitor) -> {stop, normal, Monitor}.
 %% @doc Handling results from cast messages. Due to the asynchronous
 %% nature of cast messages potential errors can only be written to
 %% the stdout.
+handle_cast_result({error, Msg}, OldMonitor) -> {noreply, OldMonitor};
 handle_cast_result({error, Msg}, OldMonitor) -> erlang:display({error, Msg}), {noreply, OldMonitor};
 handle_cast_result(UpdatedMonitor, _OldMonitor) -> {noreply, UpdatedMonitor}.
 
